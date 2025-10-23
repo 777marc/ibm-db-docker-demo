@@ -1,0 +1,46 @@
+version: "3.8"
+services:
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+    depends_on:
+      - db2
+
+  db2:
+    image: ibmcom/db2
+    privileged: true
+    ports:
+      - "50000:50000"
+    environment:
+      - LICENSE=accept
+      - DB2INST1_PASSWORD=${DB_PASSWORD}
+      - DBNAME=users
+      - BLU=false
+      - ENABLE_ORACLE_COMPATIBILITY=false
+      - UPDATEAVAIL=NO
+      - TO_CREATE_SAMPLEDB=false
+    volumes:
+      - ./init:/docker-entrypoint-initdb.d
+      - db2data:/database
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "su",
+          "-c",
+          ". /database/config/db2inst1/sqllib/db2profile && db2 connect to testdb",
+          "db2inst1",
+        ]
+      interval: 90s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  db2data:
