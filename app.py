@@ -7,6 +7,12 @@ try:
 except Exception:
     HAS_IBM_DB = False
 
+try:
+    from sqlalchemy import create_engine, text
+    HAS_SQLALCHEMY = True
+except Exception:
+    HAS_SQLALCHEMY = False
+
 
 def create_app():
     app = Flask(__name__)
@@ -17,9 +23,8 @@ def create_app():
 
     @app.route('/query', methods=['POST'])
     def query():
-        # data = request.get_json() or {}
-        # sql = data.get('sql')
-        sql = 'SELECT * FROM DB2INST1.USERS'
+        data = request.get_json() or {}
+        sql = data.get('sql')
         if not sql:
             return jsonify({'error': 'missing sql'}), 400
 
@@ -33,20 +38,43 @@ def create_app():
         conn_str = _build_conn_str_from_env()
         if not conn_str:
             return jsonify({'error': 'db credentials not configured'}), 400
+        # End of /query route
 
-        
+    @app.route('/get_users', methods=['GET'])
+    def get_users():
+        """Return all rows from USERS using SQLAlchemy (ibm_db_sa dialect).
+
+        Falls back to 503 if SQLAlchemy or the dialect is not installed, or 400 if
+        DB credentials are missing.
+        """
+        if not HAS_SQLALCHEMY:
+            return jsonify({'error': 'SQLAlchemy or ibm_db_sa not installed'}), 503
+
+        host = os.getenv('DB_HOST')
+        port = os.getenv('DB_PORT')
+        db = os.getenv('DB_NAME')
+        user = os.getenv('DB_USER')
+        pwd = os.getenv('DB_PASSWORD')
+        if not all([host, port, db, user, pwd]):
+            return jsonify({'error': 'db credentials not configured'}), 400
+
+        # ibm_db_sa connection url: ibm_db_sa://user:pwd@host:port/dbname
+        conn_url = f"ibm_db_sa://{user}:{pwd}@{host}:{port}/{db}"
         try:
-            conn = ibm_db.connect(conn_str, '', '')
-            stmt = ibm_db.exec_immediate(conn, sql)
-            rows = []
-            row = ibm_db.fetch_assoc(stmt)
-            while row:
-                rows.append(row)
-                row = ibm_db.fetch_assoc(stmt)
-            ibm_db.close(conn)
+            engine = create_engine(conn_url)
+            with engine.connect() as conn:
+                result = conn.execute(text('SELECT ID, NAME, EMAIL FROM USERS'))
+                rows = []
+                for row in result:
+                    # SQLAlchemy Row supports _mapping in modern versions
+                    if hasattr(row, '_mapping'):
+                        rows.append(dict(row._mapping))
+                    else:
+                        rows.append(dict(zip(result.keys(), row)))
             return jsonify({'rows': rows})
         except Exception as e:
-            return jsonify({'error:::': str(e)}), 500
+            return jsonify({'error': str(e)}), 500
+
 
     return app
 
