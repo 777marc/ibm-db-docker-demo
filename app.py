@@ -34,7 +34,7 @@ def create_app():
         if not conn_str:
             return jsonify({'error': 'db credentials not configured'}), 400
 
-        print(f"Connecting with: {conn_str}")
+        
         try:
             conn = ibm_db.connect(conn_str, '', '')
             stmt = ibm_db.exec_immediate(conn, sql)
