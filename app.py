@@ -23,8 +23,7 @@ def create_app():
 
     @app.route('/query', methods=['POST'])
     def query():
-        data = request.get_json() or {}
-        sql = data.get('sql')
+        sql = "SELECT * FROM USERS;"
         if not sql:
             return jsonify({'error': 'missing sql'}), 400
 
@@ -38,6 +37,19 @@ def create_app():
         conn_str = _build_conn_str_from_env()
         if not conn_str:
             return jsonify({'error': 'db credentials not configured'}), 400
+        
+        try:
+            conn = ibm_db.connect(conn_str, '', '')
+            stmt = ibm_db.exec_immediate(conn, sql)
+            rows = []
+            row = ibm_db.fetch_assoc(stmt)
+            while row:
+                rows.append(row)
+                row = ibm_db.fetch_assoc(stmt)
+            ibm_db.close(conn)
+            return jsonify({'rows': rows})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500        
         # End of /query route
 
     @app.route('/get_users', methods=['GET'])
