@@ -30,3 +30,5 @@ def test_query_non_select(client):
     rv = client.post('/query', json={'sql': 'DROP TABLE foo'})
     assert rv.status_code == 400
     assert 'only SELECT allowed' in rv.get_json().get('error')
+
+
